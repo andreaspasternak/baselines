@@ -215,6 +215,7 @@ def learn(env,
     U.initialize()
     update_target()
 
+    episode_length = 0
     episode_rewards = [0.0]
     saved_mean_reward = None
     obs = env.reset()
@@ -253,6 +254,7 @@ def learn(env,
             env_action = action
             reset = False
             new_obs, rew, done, _ = env.step(env_action)
+            episode_length += 1
             # Store transition in the replay buffer.
             replay_buffer.add(obs, action, rew, new_obs, float(done))
             obs = new_obs
@@ -287,7 +289,10 @@ def learn(env,
                 logger.record_tabular("episodes", num_episodes)
                 logger.record_tabular("mean 100 episode reward", mean_100ep_reward)
                 logger.record_tabular("% time spent exploring", int(100 * exploration.value(t)))
+                logger.record_tabular("episode length", episode_length)
                 logger.dump_tabular()
+
+                episode_length = 0
 
             if (checkpoint_freq is not None and t > learning_starts and
                     num_episodes > 100 and t % checkpoint_freq == 0):
