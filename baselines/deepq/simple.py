@@ -250,16 +250,17 @@ def learn(env,
                 kwargs['reset'] = reset
                 kwargs['update_param_noise_threshold'] = update_param_noise_threshold
                 kwargs['update_param_noise_scale'] = True
-            action = act(np.array(obs)[None], update_eps=update_eps, **kwargs)[0]
-            env_action = action
+            actions = act(obs, update_eps=update_eps, **kwargs)
+            env_actions = actions
             reset = False
-            new_obs, rew, done, _ = env.step(env_action)
             episode_length += 1
+            new_obs, rews, done, _ = env.step(env_actions)
             # Store transition in the replay buffer.
-            replay_buffer.add(obs, action, rew, new_obs, float(done))
+            for ob, action, rew, new_ob in zip(obs, actions, rews, new_obs):
+                replay_buffer.add(ob, action, rew, new_ob, float(done))
             obs = new_obs
 
-            episode_rewards[-1] += rew
+            episode_rewards[-1] += sum(rews)
             if done:
                 obs = env.reset()
                 episode_rewards.append(0.0)
