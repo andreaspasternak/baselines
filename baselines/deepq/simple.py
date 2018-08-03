@@ -91,6 +91,7 @@ def learn(env,
           print_freq=100,
           checkpoint_freq=10000,
           checkpoint_path=None,
+          checkpoint_name="model",
           learning_starts=1000,
           gamma=1.0,
           target_network_update_freq=500,
@@ -100,7 +101,8 @@ def learn(env,
           prioritized_replay_beta_iters=None,
           prioritized_replay_eps=1e-6,
           param_noise=False,
-          callback=None):
+          callback=None,
+          only_load=True):
     """Train a deepq model.
 
     Parameters
@@ -195,6 +197,17 @@ def learn(env,
 
     act = ActWrapper(act, act_params)
 
+    file_saver = tf.summary.FileWriter(checkpoint_path, sess.graph)
+
+    tf_mean_100ep_reward = tf.placeholder(tf.float32)
+    tf_exploration = tf.placeholder(tf.float32)
+
+    tf.summary.scalar("mean_100ep_reward", tf_mean_100ep_reward)
+    tf.summary.scalar("time_exploring", tf_exploration)
+
+    merged = tf.summary.merge_all()
+
+
     # Create the replay buffer
     if prioritized_replay:
         replay_buffer = PrioritizedReplayBuffer(buffer_size, alpha=prioritized_replay_alpha)
@@ -224,12 +237,14 @@ def learn(env,
     with tempfile.TemporaryDirectory() as td:
         td = checkpoint_path or td
 
-        model_file = os.path.join(td, "model")
+        model_file = os.path.join(td, checkpoint_name)
         model_saved = False
         if tf.train.latest_checkpoint(td) is not None:
             load_state(model_file)
             logger.log('Loaded model from {}'.format(model_file))
             model_saved = True
+            if only_load:
+                return act
 
         for t in range(max_timesteps):
             if callback is not None:
@@ -292,6 +307,11 @@ def learn(env,
                 logger.record_tabular("% time spent exploring", int(100 * exploration.value(t)))
                 logger.record_tabular("episode length", episode_length)
                 logger.dump_tabular()
+
+                summary = sess.run(merged, feed_dict={tf_mean_100ep_reward: mean_100ep_reward,
+                                                      tf_exploration: exploration.value(t)})
+                file_saver.add_summary(summary, num_episodes)
+                file_saver.flush()
 
                 episode_length = 0
 
