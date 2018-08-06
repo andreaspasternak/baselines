@@ -40,7 +40,8 @@ def _cnn_to_mlp(convs, hiddens, dueling, inpt, num_actions, scope, reuse=False, 
                                            kernel_size=kernel_size,
                                            stride=stride,
                                            activation_fn=tf.nn.relu)
-        conv_out = layers.flatten(out)
+        #conv_out = layers.flatten(out)
+        conv_out = tf.concat([layers.flatten(out), layers.flatten(inpt)], axis=1)
         with tf.variable_scope("action_value"):
             action_out = conv_out
             for hidden in hiddens:

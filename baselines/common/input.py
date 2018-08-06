@@ -19,7 +19,8 @@ def observation_input(ob_space, batch_size=None, name='Ob'):
         return input_x, processed_x
 
     elif isinstance(ob_space, Box):
-        input_shape = (batch_size,) + ob_space.shape
+        print(ob_space.shape)
+        input_shape = (None,) + ob_space.shape
         input_x = tf.placeholder(shape=input_shape, dtype=ob_space.dtype, name=name)
         processed_x = tf.to_float(input_x)
         return input_x, processed_x
