@@ -93,55 +93,79 @@ class Runner(AbstractEnvRunner):
         self.gamma = gamma
 
     def run(self):
-        mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs = [],[],[],[],[],[]
+        mbs_obs, mbs_rewards, mbs_actions, mbs_values, mbs_dones, mbs_neglogpacs, mbs_returns = [],[],[],[],[],[],[]
         mb_states = self.states
-        epinfos = []
-        for _ in range(self.nsteps):
-            actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
-            mb_obs.append(self.obs.copy())
-            mb_actions.append(actions)
-            mb_values.append(values)
-            mb_neglogpacs.append(neglogpacs)
-            mb_dones.append(self.dones)
+        s_epinfos = []
+        while len(mbs_rewards) < self.nsteps:
+            self.obs[:] = self.env.reset()
+            mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs, mbs_advs = [],[],[],[],[],[],[]
 
-            if self.dones[0]:
-                self.obs[:] = self.env.reset()
-                mb_rewards.append([0])
-                self.dones[0] = False
-                continue
-
-            self.obs[:], rewards, self.dones, infos = self.env.step(actions)
-            for info in infos:
-                maybeepinfo = info.get('episode')
-                if maybeepinfo: epinfos.append(maybeepinfo)
-            mb_rewards.append(rewards)
+            epinfos = []
+            while True:
+                actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
+                mb_obs.append(self.obs.copy())
+                mb_actions.append(actions)
+                mb_values.append(values)
+                mb_neglogpacs.append(neglogpacs)
+                mb_dones.append(self.dones)
 
 
 
-        #batch of steps to batch of rollouts
-        mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
-        mb_rewards = np.asarray(mb_rewards, dtype=np.float32)
-        mb_actions = np.asarray(mb_actions)
-        mb_values = np.asarray(mb_values, dtype=np.float32)
-        mb_neglogpacs = np.asarray(mb_neglogpacs, dtype=np.float32)
-        mb_dones = np.asarray(mb_dones, dtype=np.bool)
-        last_values = self.model.value(self.obs, self.states, self.dones)
-        #discount/bootstrap off value fn
-        mb_returns = np.zeros_like(mb_rewards)
-        mb_advs = np.zeros_like(mb_rewards)
-        lastgaelam = 0
-        for t in reversed(range(self.nsteps)):
-            if t == self.nsteps - 1:
-                nextnonterminal = 1.0 - self.dones
-                nextvalues = last_values
-            else:
-                nextnonterminal = 1.0 - mb_dones[t+1]
-                nextvalues = mb_values[t+1]
-            delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]
-            mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
-        mb_returns = mb_advs + mb_values
-        return (*map(sf01, (mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs)),
-            mb_states, epinfos)
+                self.obs[:], rewards, self.dones, infos = self.env.step(actions)
+                for info in infos:
+                    maybeepinfo = info.get('episode')
+                    if maybeepinfo: epinfos.append(maybeepinfo)
+                mb_rewards.append(rewards)
+
+                if self.dones[0]:
+                    break
+
+            #batch of steps to batch of rollouts
+            # mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
+            # mb_rewards = np.asarray(mb_rewards, dtype=np.float32)
+            # mb_actions = np.asarray(mb_actions)
+            # mb_values = np.asarray(mb_values, dtype=np.float32)
+            # mb_neglogpacs = np.asarray(mb_neglogpacs, dtype=np.float32)
+            # mb_dones = np.asarray(mb_dones, dtype=np.bool)
+            last_values = self.model.value(self.obs, self.states, self.dones)
+            #discount/bootstrap off value fn
+            mb_returns = np.zeros_like(mb_rewards)
+            mb_advs = np.zeros_like(mb_rewards)
+            lastgaelam = 0
+            for t in reversed(range(len(mb_rewards))):
+                if t == len(mb_rewards) - 1:
+                    nextnonterminal = 1.0 - self.dones
+                    nextvalues = last_values
+                else:
+                    nextnonterminal = 1.0 - mb_dones[t+1]
+                    nextvalues = mb_values[t+1]
+                delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]
+                mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
+
+            mb_returns = mb_advs + mb_values
+
+
+            mbs_obs.extend(mb_obs)
+            mbs_rewards.extend(mb_rewards)
+            mbs_actions.extend(mb_actions)
+            mbs_values.extend(mb_values)
+            mbs_dones.extend(mb_dones)
+            mbs_neglogpacs.extend(mb_neglogpacs)
+            mbs_returns.extend(mb_returns)
+            s_epinfos.extend(epinfos)
+
+        mbs_obs = np.asarray(mbs_obs, dtype=self.obs.dtype)
+        mbs_rewards = np.asarray(mbs_rewards, dtype=np.float32)
+        mbs_actions = np.asarray(mbs_actions)
+        mbs_values = np.asarray(mbs_values, dtype=np.float32)
+        mbs_neglogpacs = np.asarray(mbs_neglogpacs, dtype=np.float32)
+        mbs_returns = np.asarray(mbs_returns, dtype=np.float32)
+        mbs_dones = np.asarray(mbs_dones, dtype=np.bool)
+
+        assert(mbs_returns.shape == mbs_actions.shape == mbs_neglogpacs.shape == mbs_values.shape)
+        print(mbs_returns.shape)
+        return (*map(sf01, (mbs_obs, mbs_returns, mbs_dones, mbs_actions, mbs_values, mbs_neglogpacs)),
+            mb_states, s_epinfos)
 # obs, returns, masks, actions, values, neglogpacs, states = runner.run()
 def sf01(arr):
     """
