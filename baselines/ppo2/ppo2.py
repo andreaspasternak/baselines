@@ -117,7 +117,7 @@ class Runner(AbstractEnvRunner):
                     if maybeepinfo: epinfos.append(maybeepinfo)
                 mb_rewards.append(rewards)
 
-                if self.dones[0]:
+                if all(self.dones) or len(mb_rewards) > 10000:
                     break
 
             #batch of steps to batch of rollouts
@@ -142,7 +142,10 @@ class Runner(AbstractEnvRunner):
                 delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]
                 mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
 
-            mb_returns = mb_advs + mb_values
+
+            vals = np.array(mb_values)
+            advs = np.vstack(mb_advs)
+            mb_returns = advs + vals
 
 
             mbs_obs.extend(mb_obs)
@@ -164,6 +167,7 @@ class Runner(AbstractEnvRunner):
 
         assert(mbs_returns.shape == mbs_actions.shape == mbs_neglogpacs.shape == mbs_values.shape)
         print(mbs_returns.shape)
+        print(np.sum(mbs_rewards))
         return (*map(sf01, (mbs_obs, mbs_returns, mbs_dones, mbs_actions, mbs_values, mbs_neglogpacs)),
             mb_states, s_epinfos)
 # obs, returns, masks, actions, values, neglogpacs, states = runner.run()
@@ -208,7 +212,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
         model.load(load_path)
     runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
 
-    epinfobuf = deque(maxlen=100)
+    epinfobuf = deque(maxlen=10000)
     tfirststart = time.time()
 
     nupdates = total_timesteps//nbatch
@@ -257,6 +261,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
             logger.logkv("total_timesteps", update*nbatch)
             logger.logkv("fps", fps)
             logger.logkv("explained_variance", float(ev))
+            logger.logkv("total_rew", sum([epinfo['r'] for epinfo in epinfobuf]))
             logger.logkv('eprewmean', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.logkv('eplenmean', safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.logkv('time_elapsed', tnow - tfirststart)
