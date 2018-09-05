@@ -117,7 +117,7 @@ class Runner(AbstractEnvRunner):
                     if maybeepinfo: epinfos.append(maybeepinfo)
                 mb_rewards.append(rewards)
 
-                if all(self.dones) or len(mb_rewards) > 10000:
+                if all(self.dones) or len(mb_rewards) > 100000:
                     break
 
             #batch of steps to batch of rollouts
@@ -212,7 +212,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
         model.load(load_path)
     runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
 
-    epinfobuf = deque(maxlen=10000)
+    epinfobuf = deque(maxlen=100000)
     tfirststart = time.time()
 
     nupdates = total_timesteps//nbatch
