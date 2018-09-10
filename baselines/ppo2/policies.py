@@ -12,14 +12,20 @@ def nature_cnn(unscaled_images, **conv_kwargs):
     scaled_images = unscaled_images
 
     activ = tf.nn.relu
-    h = activ(conv(scaled_images, 'c1', nf=32, rf=3, stride=1, init_scale=np.sqrt(2),
+    h = activ(conv(scaled_images, 'c1', nf=16, rf=3, stride=1, init_scale=np.sqrt(2),
                    **conv_kwargs))
-    h2 = activ(conv(h, 'c2', nf=32, rf=3, stride=1, init_scale=np.sqrt(2), **conv_kwargs))
-    h3 = activ(conv(h2, 'c3', nf=32, rf=3, stride=1, init_scale=np.sqrt(2), **conv_kwargs))
+    h2 = activ(conv(h, 'c2', nf=8, rf=3, stride=1, init_scale=np.sqrt(2), **conv_kwargs))
+    h3 = activ(conv(h2, 'c3', nf=8, rf=3, stride=1, init_scale=np.sqrt(2), **conv_kwargs))
     h3 = conv_to_fc(h3)
     h3 = activ(fc(h3, 'fc1', nh=1024, init_scale=np.sqrt(2)))
-    h3 = tf.concat(axis=1, values=[h3, tf.layers.flatten(scaled_images)])
-    return activ(fc(h3, 'fc2', nh=1024, init_scale=np.sqrt(2)))
+
+    raw = activ(fc(tf.layers.flatten(scaled_images), 'fcr1', nh=512, init_scale=np.sqrt(2)))
+    raw = activ(fc(tf.layers.flatten(scaled_images), 'fcr2', nh=256, init_scale=np.sqrt(2)))
+
+
+    sum = tf.concat(axis=1, values=[h3, raw])
+
+    return sum
 
 class LnLstmPolicy(object):
     def __init__(self, sess, ob_space, ac_space, nbatch, nsteps, nlstm=256, reuse=False):
