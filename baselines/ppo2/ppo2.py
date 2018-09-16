@@ -73,6 +73,7 @@ class Model(object):
             for p, loaded_p in zip(params, loaded_params):
                 restores.append(p.assign(loaded_p))
             sess.run(restores)
+            print("Model loaded form: " +str(load_path))
             # If you want to load weights, also save/load observation scaling inside VecNormalize
 
         self.train = train
@@ -97,28 +98,26 @@ class Runner(AbstractEnvRunner):
         mb_states = self.states
         s_epinfos = []
         while len(mbs_rewards) < self.nsteps:
-            self.obs[:] = self.env.reset()
             mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_neglogpacs, mbs_advs = [],[],[],[],[],[],[]
 
             epinfos = []
-            while True:
-                actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
-                mb_obs.append(self.obs.copy())
-                mb_actions.append(actions)
-                mb_values.append(values)
-                mb_neglogpacs.append(neglogpacs)
-                mb_dones.append(self.dones)
+
+            actions, values, self.states, neglogpacs = self.model.step(self.obs, self.states, self.dones)
+            mb_obs.append(self.obs.copy())
+            mb_actions.append(actions)
+            mb_values.append(values)
+            mb_neglogpacs.append(neglogpacs)
+            mb_dones.append(self.dones)
+
+            #self.env.render()
+
+            self.obs[:], rewards, self.dones, infos = self.env.step(actions)
+            for info in infos:
+                maybeepinfo = info.get('episode')
+                if maybeepinfo: epinfos.append(maybeepinfo)
+            mb_rewards.append(rewards)
 
 
-
-                self.obs[:], rewards, self.dones, infos = self.env.step(actions)
-                for info in infos:
-                    maybeepinfo = info.get('episode')
-                    if maybeepinfo: epinfos.append(maybeepinfo)
-                mb_rewards.append(rewards)
-
-                if all(self.dones) or len(mb_rewards) > 100000:
-                    break
 
             #batch of steps to batch of rollouts
             # mb_obs = np.asarray(mb_obs, dtype=self.obs.dtype)
@@ -212,7 +211,7 @@ def learn(*, policy, env, nsteps, total_timesteps, ent_coef, lr,
         model.load(load_path)
     runner = Runner(env=env, model=model, nsteps=nsteps, gamma=gamma, lam=lam)
 
-    epinfobuf = deque(maxlen=100000)
+    epinfobuf = deque(maxlen=nsteps)
     tfirststart = time.time()
 
     nupdates = total_timesteps//nbatch
