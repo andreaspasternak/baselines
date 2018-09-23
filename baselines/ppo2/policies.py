@@ -4,31 +4,40 @@ from baselines.a2c.utils import conv, fc, conv_to_fc, batch_to_seq, seq_to_batch
 from baselines.common.distributions import make_pdtype
 from baselines.common.input import observation_input
 
-def nature_cnn(unscaled_images, **conv_kwargs):
+def res_net(input, activ, name):
+    net = input
+    with tf.variable_scope(name):
+        net = tf.layers.batch_normalization(net)
+        net = activ(net)
+        net = conv(net, 'c1', nf=32, rf=3, stride=1, init_scale=np.sqrt(2), pad="SAME")
+        net = tf.layers.batch_normalization(net)
+        net = activ(net)
+        net = conv(net, 'c2', nf=32, rf=3, stride=1, init_scale=np.sqrt(2), pad="SAME")
+
+        proj = conv(input, '1x1', nf=32, rf=1, stride=1, init_scale=np.sqrt(2), pad="SAME")
+
+        net = net + proj
+
+    return net
+
+
+def nature_cnn(unscaled_images):
     """
     CNN from Nature paper.
     """
     # scaled_images = tf.cast(unscaled_images, tf.float32) / 255.
-    scaled_images = unscaled_images
+    net = unscaled_images
 
-    activ = tf.nn.elu
-    h = activ(conv(scaled_images, 'c1', nf=64, rf=3, stride=1, init_scale=np.sqrt(2),
-                   **conv_kwargs))
-    h2 = activ(conv(h, 'c2', nf=64, rf=3, stride=1, init_scale=np.sqrt(2), **conv_kwargs))
-    h3 = activ(conv(h2, 'c3', nf=64, rf=3, stride=1, init_scale=np.sqrt(2), **conv_kwargs))
-    #h3 = activ(conv(h2, 'c4', nf=64, rf=3, stride=1, init_scale=np.sqrt(2), **conv_kwargs))
-    h3 = conv_to_fc(h3)
-    h3 = activ(fc(h3, 'fc1', nh=2048*2, init_scale=np.sqrt(2)))
-    h3 = activ(fc(h3, 'fc11', nh=2048, init_scale=np.sqrt(2)))
+    activ = tf.nn.relu
 
-    raw = tf.layers.flatten(scaled_images)
-    raw = activ(fc(raw, 'fcr1', nh=2048, init_scale=np.sqrt(2)))
-    raw = activ(fc(raw, 'fcr2', nh=1024, init_scale=np.sqrt(2)))
-    raw = activ(fc(raw, 'fcr3', nh=512, init_scale=np.sqrt(2)))
+    net = res_net(net, activ, "n1")
+    net = res_net(net, activ, "n2")
 
+    net = tf.layers.flatten(unscaled_images)
+    net = activ(fc(net, 'fcr1', nh=2048, init_scale=np.sqrt(2)))
 
-    h3 = tf.concat(axis=1, values=[h3, raw])
-    return activ(fc(h3, 'fc2', nh=1024, init_scale=np.sqrt(2)))
+    return net
+
 
 class LnLstmPolicy(object):
     def __init__(self, sess, ob_space, ac_space, nbatch, nsteps, nlstm=256, reuse=False):
