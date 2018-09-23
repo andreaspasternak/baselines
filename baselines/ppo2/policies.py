@@ -33,7 +33,7 @@ def nature_cnn(unscaled_images):
     net = res_net(net, activ, "n1")
     net = res_net(net, activ, "n2")
 
-    net = tf.layers.flatten(unscaled_images)
+    net = tf.layers.flatten(net)
     net = activ(fc(net, 'fcr1', nh=2048, init_scale=np.sqrt(2)))
 
     return net
