@@ -7,10 +7,10 @@ from baselines.common.input import observation_input
 def res_net(input, activ, name):
     net = input
     with tf.variable_scope(name):
-        net = tf.layers.batch_normalization(net)
+        #net = tf.layers.batch_normalization(net)
         net = activ(net)
         net = conv(net, 'c1', nf=32, rf=3, stride=1, init_scale=np.sqrt(2), pad="SAME")
-        net = tf.layers.batch_normalization(net)
+        #net = tf.layers.batch_normalization(net)
         net = activ(net)
         net = conv(net, 'c2', nf=32, rf=3, stride=1, init_scale=np.sqrt(2), pad="SAME")
 
@@ -28,10 +28,13 @@ def nature_cnn(unscaled_images):
     # scaled_images = tf.cast(unscaled_images, tf.float32) / 255.
     net = unscaled_images
 
-    activ = tf.nn.relu
+    activ = tf.nn.elu
 
     net = res_net(net, activ, "n1")
     net = res_net(net, activ, "n2")
+    net = res_net(net, activ, "n2")
+    net = res_net(net, activ, "n2")
+
 
     net = tf.layers.flatten(net)
     net = activ(fc(net, 'fcr1', nh=2048, init_scale=np.sqrt(2)))
