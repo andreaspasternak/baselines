@@ -4,24 +4,27 @@ from baselines.a2c.utils import conv, fc, conv_to_fc, batch_to_seq, seq_to_batch
 from baselines.common.distributions import make_pdtype
 from baselines.common.input import observation_input
 
-def res_net(input, activ, name):
+def res_net(input, activ, name, training, first=False):
     net = input
     with tf.variable_scope(name):
-        #net = tf.layers.batch_normalization(net)
-        net = activ(net)
-        net = conv(net, 'c1', nf=32, rf=3, stride=1, init_scale=np.sqrt(2), pad="SAME")
-        #net = tf.layers.batch_normalization(net)
-        net = activ(net)
-        net = conv(net, 'c2', nf=32, rf=3, stride=1, init_scale=np.sqrt(2), pad="SAME")
+        if not first:
+            net = tf.layers.batch_normalization(net, training=training)
+            net = activ(net)
 
-        proj = conv(input, '1x1', nf=32, rf=1, stride=1, init_scale=np.sqrt(2), pad="SAME")
-
-        net = net + proj
+        net = tf.layers.conv2d(net, name='c1', filters=32, kernel_size=3, padding="same")
+        net = tf.layers.batch_normalization(net, training=training)
+        net = activ(net)
+        net = tf.layers.conv2d(net, name='c2', filters=32, kernel_size=3,  padding="same")
+        if first:
+            pad = tf.pad(input, [[0, 0], [0, 0], [0, 0], [29, 0]])
+            net = net + pad
+        else:
+            net = net + input
 
     return net
 
 
-def nature_cnn(unscaled_images):
+def nature_cnn(unscaled_images, training):
     """
     CNN from Nature paper.
     """
@@ -30,12 +33,18 @@ def nature_cnn(unscaled_images):
 
     activ = tf.nn.elu
 
-    net = res_net(net, activ, "n1")
-    net = res_net(net, activ, "n2")
-    net = res_net(net, activ, "n3")
-    net = res_net(net, activ, "n4")
+    net = res_net(net, activ, "n1", training, first=True)
+    net = res_net(net, activ, "n2", training)
+    net = res_net(net, activ, "n3", training)
+    net = res_net(net, activ, "n4", training)
 
+    # net = res_net(net, activ, "n5", training)
+    # net = res_net(net, activ, "n6", training)
+    # net = res_net(net, activ, "n7", training)
+    # net = res_net(net, activ, "n8", training)
 
+    net = tf.layers.batch_normalization(net, training=training)
+    net = activ(net)
     net = tf.layers.flatten(net)
     net = activ(fc(net, 'fcr1', nh=2048, init_scale=np.sqrt(2)))
 
@@ -114,11 +123,11 @@ class LstmPolicy(object):
 
 class CnnPolicy(object):
 
-    def __init__(self, sess, ob_space, ac_space, nbatch, nsteps, reuse=False, **conv_kwargs): #pylint: disable=W0613
+    def __init__(self, sess, ob_space, ac_space, nbatch, nsteps, training, reuse=False, ): #pylint: disable=W0613
         self.pdtype = make_pdtype(ac_space)
         X, processed_x = observation_input(ob_space, nbatch)
         with tf.variable_scope("model", reuse=reuse):
-            h = nature_cnn(processed_x, **conv_kwargs)
+            h = nature_cnn(processed_x, training)
             vf = fc(h, 'v', 1)[:,0]
             self.pd, self.pi = self.pdtype.pdfromlatent(h, init_scale=0.01)
 
