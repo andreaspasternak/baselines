@@ -4,6 +4,8 @@ from baselines.a2c.utils import conv, fc, conv_to_fc, batch_to_seq, seq_to_batch
 from baselines.common.distributions import make_pdtype
 from baselines.common.input import observation_input
 
+from models.official.resnet import resnet_model
+
 def res_net(input, activ, name, training, first=False):
     net = input
     with tf.variable_scope(name):
@@ -11,12 +13,12 @@ def res_net(input, activ, name, training, first=False):
             net = tf.layers.batch_normalization(net, training=training)
             net = activ(net)
 
-        net = tf.layers.conv2d(net, name='c1', filters=32, kernel_size=3, padding="same")
+        net = tf.layers.conv2d(net, name='c1', filters=64, kernel_size=3, padding="same")
         net = tf.layers.batch_normalization(net, training=training)
         net = activ(net)
-        net = tf.layers.conv2d(net, name='c2', filters=32, kernel_size=3,  padding="same")
+        net = tf.layers.conv2d(net, name='c2', filters=64, kernel_size=3,  padding="same")
         if first:
-            pad = tf.pad(input, [[0, 0], [0, 0], [0, 0], [29, 0]])
+            pad = tf.pad(input, [[0, 0], [0, 0], [0, 0], [64-3, 0]])
             net = net + pad
         else:
             net = net + input
@@ -25,30 +27,49 @@ def res_net(input, activ, name, training, first=False):
 
 
 def nature_cnn(unscaled_images, training):
-    """
-    CNN from Nature paper.
-    """
-    # scaled_images = tf.cast(unscaled_images, tf.float32) / 255.
-    net = unscaled_images
+    # """
+    # CNN from Nature paper.
+    # """
+    # # scaled_images = tf.cast(unscaled_images, tf.float32) / 255.
+    # net = unscaled_images
+    #
+    # activ = tf.nn.elu
+    #
+    # net = res_net(net, activ, "n_first", training, first=True)
+    #
+    # for i in range(0, 8):
+    #     net = res_net(net, activ, "n_"+str(i), training)
+    #
+    #
+    #
+    # # net = res_net(net, activ, "n5", training)
+    # # net = res_net(net, activ, "n6", training)
+    # # net = res_net(net, activ, "n7", training)
+    # # net = res_net(net, activ, "n8", training)
+    #
+    # net = tf.layers.batch_normalization(net, training=training)
+    # net = activ(net)
+    #
+    # #net = tf.layers.average_pooling2d(net, pool_size, strides)
+    # net = tf.layers.flatten(net)
+    # net = activ(fc(net, 'fcr1', nh=2048, init_scale=np.sqrt(2)))
 
-    activ = tf.nn.elu
+    num_blocks = 3
 
-    net = res_net(net, activ, "n1", training, first=True)
-    net = res_net(net, activ, "n2", training)
-    net = res_net(net, activ, "n3", training)
-    net = res_net(net, activ, "n4", training)
+    model = resnet_model.Model(
+        resnet_size=4,
+        bottleneck=False,
+        num_classes=3,
+        num_filters=32,
+        kernel_size=3,
+        conv_stride=1,
+        first_pool_size=None,
+        first_pool_stride=None,
+        block_sizes=[num_blocks] * 3,
+        block_strides=[1, 2, 2]
+        )
 
-    # net = res_net(net, activ, "n5", training)
-    # net = res_net(net, activ, "n6", training)
-    # net = res_net(net, activ, "n7", training)
-    # net = res_net(net, activ, "n8", training)
-
-    net = tf.layers.batch_normalization(net, training=training)
-    net = activ(net)
-    net = tf.layers.flatten(net)
-    net = activ(fc(net, 'fcr1', nh=2048, init_scale=np.sqrt(2)))
-
-    return net
+    return model(unscaled_images, training)
 
 
 class LnLstmPolicy(object):
