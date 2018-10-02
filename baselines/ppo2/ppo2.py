@@ -133,7 +133,11 @@ class Runner(AbstractEnvRunner):
                 nextvalues = mb_values[t+1]
             delta = mb_rewards[t] + self.gamma * nextvalues * nextnonterminal - mb_values[t]
             mb_advs[t] = lastgaelam = delta + self.gamma * self.lam * nextnonterminal * lastgaelam
-        mb_returns = mb_advs + mb_values
+        mb_returns = mb_advs + np.squeeze(mb_values)
+
+        mb_returns = np.expand_dims(mb_rewards, 1)
+        mb_dones = np.expand_dims(mb_dones, 1)
+
         return (*map(sf01, (mb_obs, mb_returns, mb_dones, mb_actions, mb_values, mb_neglogpacs)),
             mb_states, epinfos)
 # obs, returns, masks, actions, values, neglogpacs, states = runner.run()
