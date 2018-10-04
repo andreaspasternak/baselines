@@ -66,16 +66,13 @@ class Model(object):
             )[:-1]
         self.loss_names = ['policy_loss', 'value_loss', 'policy_entropy', 'approxkl', 'clipfrac']
 
+        saver = tf.train.Saver()
+
         def save(save_path):
-            ps = sess.run(params)
-            joblib.dump(ps, save_path)
+            saver.save(sess, save_path)
 
         def load(load_path):
-            loaded_params = joblib.load(load_path)
-            restores = []
-            for p, loaded_p in zip(params, loaded_params):
-                restores.append(p.assign(loaded_p))
-            sess.run(restores)
+            saver.restore(sess, load_path)
             print("Model loaded form: " +str(load_path))
             # If you want to load weights, also save/load observation scaling inside VecNormalize
 
