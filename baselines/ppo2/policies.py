@@ -69,7 +69,10 @@ def nature_cnn(unscaled_images, training):
         block_strides=[1, 2, 2]
         )
 
-    return model(unscaled_images, training)
+    res_out = model(unscaled_images, training)
+
+
+    return res_out
 
 
 class LnLstmPolicy(object):
